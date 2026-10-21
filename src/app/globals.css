@@ -1,26 +1,131 @@
 @import "tailwindcss";
 
+/*
+ * Livo tokens.
+ * Asphalt sidebar, cool paper workspace, route blue for actions,
+ * signal amber reserved for things that need a dispatcher's attention.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --asphalt: #1b2230;
+  --asphalt-2: #262f40;
+  --asphalt-line: #333d50;
+  --paper: #f3f5f8;
+  --surface: #ffffff;
+  --ink: #161b24;
+  --ink-2: #4a5465;
+  --ink-3: #7b8597;
+  --line: #dde2ea;
+  --line-strong: #c6cdd8;
+  --route: #2b55c9;
+  --route-ink: #1d3e98;
+  --route-wash: #e8eefc;
+  --signal: #c77a12;
+  --signal-wash: #fdf3e2;
+  --stop: #c2364a;
+  --stop-wash: #fdecee;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-asphalt: var(--asphalt);
+  --color-asphalt-2: var(--asphalt-2);
+  --color-asphalt-line: var(--asphalt-line);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-route: var(--route);
+  --color-route-ink: var(--route-ink);
+  --color-route-wash: var(--route-wash);
+  --color-signal: var(--signal);
+  --color-signal-wash: var(--signal-wash);
+  --color-stop: var(--stop);
+  --color-stop-wash: var(--stop-wash);
+  --font-sans: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
+  --font-cond: var(--font-barlow-cond), var(--font-barlow), ui-sans-serif, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  font-feature-settings: "tnum" 1;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+:focus-visible {
+  outline: 2px solid var(--route);
+  outline-offset: 2px;
+}
+
+/* Form controls share one look across every screen. */
+.field {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 15px;
+  color: var(--ink);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--route);
+  box-shadow: 0 0 0 3px var(--route-wash);
+}
+.field[aria-invalid="true"] {
+  border-color: var(--stop);
+}
+select.field {
+  padding-right: 28px;
+}
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  margin-bottom: 4px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-weight: 600;
+  font-size: 14px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--paper);
+}
+.btn-primary {
+  background: var(--route);
+  border-color: var(--route);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: var(--route-ink);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
 }
