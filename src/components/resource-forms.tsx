@@ -28,16 +28,16 @@ function Inline({ action, children, submitLabel, savedLabel }: InlineProps) {
     if (state.ok) ref.current?.reset();
   }, [state]);
   return (
-    <form ref={ref} action={formAction} onSubmit={() => markSubmitted(true)} className="flex flex-wrap items-end gap-3">
+    <form ref={ref} action={formAction} onSubmit={() => markSubmitted(true)} className="inline-form">
       {children}
-      <button type="submit" className="btn btn-primary" disabled={pending}>
+      <button type="submit" className="btn primary" disabled={pending}>
         {pending ? "Saving…" : submitLabel}
       </button>
-      <p aria-live="polite" className="basis-full text-[14px] font-semibold empty:hidden">
+      <p aria-live="polite" style={{ flexBasis: "100%", margin: 0, fontSize: 13, fontWeight: 600 }}>
         {state.error ? (
-          <span className="text-stop">{state.error}</span>
+          <span style={{ color: "var(--crit)" }}>{state.error}</span>
         ) : state.ok && !pending ? (
-          <span className="text-route-ink">{savedLabel}</span>
+          <span style={{ color: "var(--good)" }}>{savedLabel}</span>
         ) : null}
       </p>
     </form>

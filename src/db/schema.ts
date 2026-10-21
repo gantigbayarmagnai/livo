@@ -102,6 +102,32 @@ export const driverShifts = pgTable(
   (t) => [index("driver_shifts_driver_starts_idx").on(t.driverId, t.startsAt)],
 );
 
+/**
+ * The operator's own colored trip statuses, as in Limo Anywhere
+ * ("On the road", "Pending Quote", "Get Status Now!"…). They color the
+ * calendar. A null color means "no color".
+ */
+export const tripStatuses = pgTable("trip_statuses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  color: text("color"),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+/** Non-reservation calendar entries: vehicle service, days off, notes. */
+export const calendarEvents = pgTable(
+  "calendar_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    date: text("date").notNull(), // company-time "YYYY-MM-DD"
+    time: text("time"), // "HH:MM", null = all day
+    title: text("title").notNull(),
+    kind: text("kind").notNull().default("Note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("calendar_events_date_idx").on(t.date)],
+);
+
 export const reservations = pgTable(
   "reservations",
   {
@@ -125,14 +151,22 @@ export const reservations = pgTable(
     stops: jsonb("stops").$type<string[]>().notNull().default([]),
 
     airline: text("airline"),
+    /** none | driver | greeter (airport arrivals). */
+    meetGreet: text("meet_greet").notNull().default("none"),
+    /** Hourly jobs outside San Francisco carry a longer minimum. */
+    outsideSf: boolean("outside_sf").notNull().default(false),
     flightNumber: text("flight_number"),
+
+    tripStatusId: uuid("trip_status_id").references(() => tripStatuses.id, { onDelete: "set null" }),
+    /** Optional grouping, e.g. a roadshow or wedding with several trips. */
+    groupName: text("group_name"),
 
     vehicleTypeId: uuid("vehicle_type_id").references(() => vehicleTypes.id),
     vehicleId: uuid("vehicle_id").references(() => vehicles.id),
     driverId: uuid("driver_id").references(() => drivers.id),
 
     baseRate: numeric("base_rate", { precision: 10, scale: 2 }).notNull().default("0"),
-    gratuityPct: numeric("gratuity_pct", { precision: 5, scale: 2 }).notNull().default("20"),
+    gratuityPct: numeric("gratuity_pct", { precision: 5, scale: 2 }).notNull().default("0"),
     extras: numeric("extras", { precision: 10, scale: 2 }).notNull().default("0"),
 
     customerNotes: text("customer_notes"),
@@ -168,6 +202,8 @@ export type Vehicle = typeof vehicles.$inferSelect;
 export type Driver = typeof drivers.$inferSelect;
 export type DriverShift = typeof driverShifts.$inferSelect;
 export type Reservation = typeof reservations.$inferSelect;
+export type TripStatus = typeof tripStatuses.$inferSelect;
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
 export type ReservationEvent = typeof reservationEvents.$inferSelect;
 export type ReservationStatus = (typeof reservationStatus.enumValues)[number];
 export type ServiceType = (typeof serviceType.enumValues)[number];

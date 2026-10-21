@@ -1,15 +1,26 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, ilike } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { reservationStatus, serviceType, type ReservationStatus } from "@/db/schema";
 import { STATUS_LABELS, fullName } from "@/lib/labels";
+import { quote, type MeetGreet } from "@/lib/pricing";
 import { zonedToUtc } from "@/lib/time";
 
-const { reservations, reservationEvents, drivers, vehicles, accounts, driverShifts, vehicleTypes } = schema;
+const {
+  reservations,
+  reservationEvents,
+  drivers,
+  vehicles,
+  accounts,
+  driverShifts,
+  vehicleTypes,
+  tripStatuses,
+  calendarEvents,
+} = schema;
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string>; ok?: boolean };
 
@@ -24,38 +35,45 @@ const optionalId = z
   .transform((v) => (v === "" ? null : v))
   .nullable()
   .optional();
-const money = z.coerce.number().min(0).max(1_000_000);
+const money = z.preprocess((v) => (v === "" || v == null ? 0 : v), z.coerce.number().min(0).max(1_000_000));
 
 const reservationInput = z.object({
   accountId: optionalId,
   status: z.enum(reservationStatus.enumValues),
+  tripStatusId: optionalId,
+  groupName: optionalText,
   serviceType: z.enum(serviceType.enumValues),
-  passengerName: z.string().trim().min(1, "Passenger name is required"),
+  passengerName: z.string().trim().min(1, "Add the passenger"),
   passengerPhone: optionalText,
   passengerCount: z.coerce.number().int().min(1, "At least 1 passenger").max(60),
   luggageCount: z.coerce.number().int().min(0).max(60),
-  pickupAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Pick a pickup date and time"),
-  estDurationMin: z.coerce
-    .number()
-    .int()
-    .min(15)
-    .max(24 * 60),
-  pickupAddress: z.string().trim().min(1, "Pickup address is required"),
+  pickupDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Add the pickup date"),
+  pickupTime: z.string().regex(/^\d{2}:\d{2}$/, "Add the pickup time"),
+  hours: z.preprocess((v) => (v === "" || v == null ? 0 : v), z.coerce.number().min(0).max(24)),
+  estDurationMin: z.preprocess(
+    (v) => (v === "" || v == null ? 90 : v),
+    z.coerce
+      .number()
+      .int()
+      .min(15)
+      .max(24 * 60),
+  ),
+  outsideSf: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  meetGreet: z.enum(["none", "driver", "greeter"]).default("none"),
+  pickupAddress: z.string().trim().min(1, "Add the pickup"),
   dropoffAddress: optionalText,
   stops: z.string().optional(),
-  airline: optionalText,
   flightNumber: optionalText,
   vehicleTypeId: optionalId,
   vehicleId: optionalId,
   driverId: optionalId,
-  baseRate: money,
-  gratuityPct: z.coerce.number().min(0).max(100),
-  extras: money,
+  staffPrice: money,
+  tolls: money,
   customerNotes: optionalText,
   dispatchNotes: optionalText,
 });
 
-function parseReservation(formData: FormData) {
+async function parseReservation(formData: FormData) {
   const raw = Object.fromEntries(formData.entries());
   const parsed = reservationInput.safeParse(raw);
   if (!parsed.success) {
@@ -67,22 +85,53 @@ function parseReservation(formData: FormData) {
     return { error: { error: "Fix the highlighted fields.", fieldErrors } as FormState };
   }
   const d = parsed.data;
+  const [type] = d.vehicleTypeId
+    ? await db.select().from(vehicleTypes).where(eq(vehicleTypes.id, d.vehicleTypeId))
+    : [];
+  // Price on the server from the rate card, the same way the form previews it.
+  const q = quote({
+    service: d.serviceType,
+    type: type ?? null,
+    hours: d.hours,
+    outsideSf: d.outsideSf,
+    meetGreet: d.meetGreet as MeetGreet,
+    pickupTime: d.pickupTime,
+    staffPrice: d.staffPrice,
+    tolls: d.tolls,
+  });
+  const estDurationMin = d.serviceType === "hourly" ? Math.max(d.hours, q.minHours ?? 0, 1) * 60 : d.estDurationMin;
+
   // Assigning a driver to an unassigned trip moves it to Assigned, and the reverse.
   let status: ReservationStatus = d.status;
   if (d.driverId && status === "unassigned") status = "assigned";
   if (!d.driverId && status === "assigned") status = "unassigned";
+
+  // No trip status chosen: Unassigned or Dispatched, as Limo Anywhere does.
+  let tripStatusId = d.tripStatusId ?? null;
+  if (!tripStatusId) {
+    const [auto] = await db
+      .select()
+      .from(tripStatuses)
+      .where(ilike(tripStatuses.name, d.driverId ? "dispatched" : "unassigned"));
+    tripStatusId = auto?.id ?? null;
+  }
+
+  const { pickupDate, pickupTime, hours: _h, staffPrice: _s, tolls: _t, ...rest } = d;
   return {
     values: {
-      ...d,
+      ...rest,
+      tripStatusId,
       status,
-      pickupAt: zonedToUtc(d.pickupAt),
+      estDurationMin,
+      pickupAt: zonedToUtc(`${pickupDate}T${pickupTime}`),
+      meetGreet: d.serviceType === "airport_arrival" ? d.meetGreet : "none",
       stops: (d.stops ?? "")
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean),
-      baseRate: d.baseRate.toFixed(2),
-      gratuityPct: d.gratuityPct.toFixed(2),
-      extras: d.extras.toFixed(2),
+      baseRate: q.base.toFixed(2),
+      gratuityPct: "0",
+      extras: q.addOns.toFixed(2),
     },
   };
 }
@@ -92,7 +141,7 @@ async function log(reservationId: string, kind: string, message: string) {
 }
 
 export async function createReservation(_prev: FormState, formData: FormData): Promise<FormState> {
-  const p = parseReservation(formData);
+  const p = await parseReservation(formData);
   if (p.error) return p.error;
   const [row] = await db
     .insert(reservations)
@@ -103,7 +152,7 @@ export async function createReservation(_prev: FormState, formData: FormData): P
 }
 
 export async function updateReservation(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
-  const p = parseReservation(formData);
+  const p = await parseReservation(formData);
   if (p.error) return p.error;
   const [before] = await db.select().from(reservations).where(eq(reservations.id, id));
   if (!before) return { error: "This reservation no longer exists." };
@@ -115,16 +164,18 @@ export async function updateReservation(id: string, _prev: FormState, formData: 
   const changes: string[] = [];
   if (before.status !== p.values.status)
     changes.push(`status ${STATUS_LABELS[before.status]} → ${STATUS_LABELS[p.values.status]}`);
+  if (before.tripStatusId !== p.values.tripStatusId) changes.push("trip status changed");
   if (before.pickupAt.getTime() !== p.values.pickupAt.getTime()) changes.push("pickup time changed");
   if (before.driverId !== p.values.driverId) changes.push("driver changed");
   if (before.vehicleId !== p.values.vehicleId) changes.push("vehicle changed");
+  if (before.baseRate !== p.values.baseRate || before.extras !== p.values.extras) changes.push("price changed");
   await log(id, "updated", changes.length ? `Edited: ${changes.join(", ")}` : "Details edited");
   refresh();
   return { ok: true };
 }
 
 /** Inline changes from the dispatch board. */
-export async function setTripStatus(id: string, status: ReservationStatus) {
+export async function setStatus(id: string, status: ReservationStatus) {
   const parsed = z.enum(reservationStatus.enumValues).parse(status);
   const [before] = await db.select({ status: reservations.status }).from(reservations).where(eq(reservations.id, id));
   if (!before || before.status === parsed) return;
@@ -147,9 +198,16 @@ export async function assignDriver(id: string, driverId: string | null) {
   }
   const status: ReservationStatus =
     driverId && r.status === "unassigned" ? "assigned" : !driverId && r.status === "assigned" ? "unassigned" : r.status;
+  // Keep MGL's trip status in step: Unassigned ↔ Dispatched.
+  let tripStatusId = r.tripStatusId;
+  const [unassignedSt] = await db.select().from(tripStatuses).where(ilike(tripStatuses.name, "unassigned"));
+  const [dispatchedSt] = await db.select().from(tripStatuses).where(ilike(tripStatuses.name, "dispatched"));
+  if (driverId && unassignedSt && dispatchedSt && (!tripStatusId || tripStatusId === unassignedSt.id))
+    tripStatusId = dispatchedSt.id;
+  if (!driverId && unassignedSt && dispatchedSt && tripStatusId === dispatchedSt.id) tripStatusId = unassignedSt.id;
   await db
     .update(reservations)
-    .set({ driverId, vehicleId, status, updatedAt: new Date() })
+    .set({ driverId, vehicleId, status, tripStatusId, updatedAt: new Date() })
     .where(eq(reservations.id, id));
   await log(id, "assign", driverId ? `Assigned to ${driverName}` : "Driver removed");
   refresh();
@@ -279,13 +337,83 @@ export async function toggleVehicleActive(id: string) {
   refresh();
 }
 
-/** Rate lookup for the reservation form's "Use rate card" button. */
-export async function suggestRate(vehicleTypeId: string, service: string, durationMin: number) {
-  const [t] = await db.select().from(vehicleTypes).where(eq(vehicleTypes.id, vehicleTypeId));
-  if (!t) return null;
-  if (service === "hourly") {
-    const hours = Math.max(t.minHours, Math.ceil(durationMin / 60));
-    return { baseRate: (Number(t.hourlyRate) * hours).toFixed(2), note: `${hours} h × ${t.hourlyRate}/h` };
-  }
-  return { baseRate: Number(t.baseRate).toFixed(2), note: `${t.name} base rate` };
+/* ---------- Trip statuses (MGL's colored statuses) ---------- */
+
+export async function setTripStatus(id: string, tripStatusId: string) {
+  const [stRow] = await db.select().from(tripStatuses).where(eq(tripStatuses.id, tripStatusId));
+  if (!stRow) return;
+  await db.update(reservations).set({ tripStatusId, updatedAt: new Date() }).where(eq(reservations.id, id));
+  await log(id, "trip_status", `Trip status set to ${stRow.name}`);
+  refresh();
+}
+
+export async function setTripStatusColor(id: string, color: string | null) {
+  const c =
+    color === null
+      ? null
+      : z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .parse(color);
+  await db.update(tripStatuses).set({ color: c }).where(eq(tripStatuses.id, id));
+  refresh();
+}
+
+export async function addTripStatus(_prev: FormState, formData: FormData): Promise<FormState> {
+  const parsed = z
+    .object({ name: z.string().trim().min(1, "Name the status"), color: z.string().regex(/^#[0-9a-fA-F]{6}$/) })
+    .safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const existing = await db.select({ id: tripStatuses.id }).from(tripStatuses);
+  await db.insert(tripStatuses).values({ ...parsed.data, sortOrder: existing.length });
+  refresh();
+  return { ok: true };
+}
+
+/* ---------- Calendar events ---------- */
+
+export async function addCalendarEvent(_prev: FormState, formData: FormData): Promise<FormState> {
+  const parsed = z
+    .object({
+      title: z.string().trim().min(1, "Give the event a name"),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
+      time: z
+        .string()
+        .transform((v) => (v === "" ? null : v))
+        .nullable()
+        .refine((v) => v === null || /^\d{2}:\d{2}$/.test(v), "Pick a time"),
+      kind: z.enum(["Note", "Vehicle", "Driver"]).default("Note"),
+    })
+    .safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  await db.insert(calendarEvents).values(parsed.data);
+  refresh();
+  return { ok: true };
+}
+
+export async function deleteCalendarEvent(id: string) {
+  await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+  refresh();
+}
+
+/* ---------- Rate lookup ---------- */
+
+export async function getRateCard() {
+  return db.select().from(vehicleTypes).orderBy(vehicleTypes.sortOrder);
+}
+
+/** Pickup move after a flight delay (dispatch detail). */
+export async function movePickup(id: string, date: string, time: string) {
+  z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .parse(date);
+  z.string()
+    .regex(/^\d{2}:\d{2}$/)
+    .parse(time);
+  await db
+    .update(reservations)
+    .set({ pickupAt: zonedToUtc(`${date}T${time}`), updatedAt: new Date() })
+    .where(eq(reservations.id, id));
+  await log(id, "updated", `Pickup moved to ${time}`);
+  refresh();
 }

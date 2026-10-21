@@ -120,3 +120,9 @@ export function formatDayKey(
 export function addMinutes(date: Date, min: number): Date {
   return new Date(date.getTime() + min * 60_000);
 }
+
+/** 24-hour "HH:MM" in company time, as the dispatch grid and calendar show it. */
+export function hhmm(date: Date, tz = COMPANY_TZ): string {
+  const p = partsInZone(date, tz);
+  return `${pad(p.hour)}:${pad(p.minute)}`;
+}

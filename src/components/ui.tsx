@@ -1,61 +1,87 @@
 import type { ReactNode } from "react";
 import type { ReservationStatus } from "@/db/schema";
-import { STATUS_LABELS, STATUS_STYLES } from "@/lib/labels";
+import { STATUS_LABELS } from "@/lib/labels";
 
-export function PageHeader({ title, sub, actions }: { title: ReactNode; sub?: ReactNode; actions?: ReactNode }) {
+/** Eyebrow + title + optional description and actions, as in the prototype. */
+export function ViewHead({
+  eyebrow,
+  title,
+  desc,
+  actions,
+}: {
+  eyebrow: string;
+  title: ReactNode;
+  desc?: ReactNode;
+  actions?: ReactNode;
+}) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-3 border-b border-line bg-surface px-4 py-4 md:px-8">
-      <div className="min-w-0">
-        <h1 className="font-cond text-[28px] font-bold leading-tight tracking-tight">{title}</h1>
-        {sub ? <div className="mt-0.5 text-ink-2">{sub}</div> : null}
+    <div className="view-head">
+      <div>
+        <div className="eyebrow">{eyebrow}</div>
+        <h1>{title}</h1>
+        {desc ? <p>{desc}</p> : null}
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-    </header>
+      {actions ? <div className="actions">{actions}</div> : null}
+    </div>
   );
 }
 
-export function StatusBadge({ status }: { status: ReservationStatus }) {
+const LIFECYCLE_CHIP: Record<ReservationStatus, string> = {
+  quote: "info",
+  unassigned: "crit",
+  assigned: "good",
+  en_route: "good",
+  on_location: "good",
+  passenger_on_board: "good",
+  done: "plain",
+  cancelled: "plain",
+  no_show: "warn",
+};
+
+export function StatusChip({ status }: { status: ReservationStatus }) {
+  return <span className={`chip ${LIFECYCLE_CHIP[status]}`}>{STATUS_LABELS[status]}</span>;
+}
+
+/** MGL's own colored trip status, tinted with its color (or plain when it has none). */
+export function TripStatusChip({ status }: { status: { name: string; color: string | null } | null | undefined }) {
+  if (!status?.name) return <span className="chip plain">No status</span>;
+  if (!status.color) return <span className="chip plain">{status.name}</span>;
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[13px] font-semibold ring-1 ring-inset ${STATUS_STYLES[status]}`}
+      className="chip"
+      style={{
+        background: `color-mix(in srgb, ${status.color} 30%, var(--surface))`,
+        color: "var(--ink)",
+        border: `1px solid ${status.color}`,
+      }}
     >
-      {STATUS_LABELS[status]}
+      {status.name}
     </span>
   );
 }
 
-export function DriverDot({ color }: { color: string }) {
-  return <span aria-hidden className="inline-block size-2.5 shrink-0 rounded-full" style={{ background: color }} />;
-}
-
-export function Panel({ title, children, actions }: { title?: ReactNode; children: ReactNode; actions?: ReactNode }) {
+export function Loading({ rows = 6 }: { rows?: number }) {
   return (
-    <section className="rounded-lg border border-line bg-surface">
-      {title ? (
-        <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-2.5">
-          <h2 className="font-semibold">{title}</h2>
-          {actions}
-        </div>
-      ) : null}
-      <div className="p-4">{children}</div>
-    </section>
-  );
-}
-
-export function Empty({ children }: { children: ReactNode }) {
-  return (
-    <div className="rounded-lg border border-dashed border-line-strong bg-surface px-6 py-10 text-center text-ink-2">
-      {children}
-    </div>
-  );
-}
-
-export function LoadingRows({ rows = 6 }: { rows?: number }) {
-  return (
-    <div className="space-y-2 p-4 md:px-8" aria-busy="true" aria-label="Loading">
+    <div className="stack" style={{ gap: 8 }} aria-busy="true" aria-label="Loading">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="h-11 animate-pulse rounded-md bg-line/60" />
+        <div key={i} className="skeleton" />
       ))}
     </div>
+  );
+}
+
+/** Sections from Limo Anywhere that Livo hasn't built yet. */
+export function NotBuilt({ eyebrow, title, plan }: { eyebrow: string; title: string; plan: string[] }) {
+  return (
+    <>
+      <ViewHead eyebrow={eyebrow} title={title} desc="Not built yet in this version of Livo. Here's what goes here." />
+      <div className="panel">
+        <ul className="notes" style={{ marginTop: 0, fontSize: 13.5, color: "var(--ink)" }}>
+          {plan.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
+      </div>
+    </>
   );
 }

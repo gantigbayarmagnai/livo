@@ -1,11 +1,21 @@
 import "server-only";
-import { and, asc, desc, eq, gte, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { ReservationStatus } from "@/db/schema";
 import { ACTIVE_STATUSES } from "./labels";
 import { addMinutes, dayRange, toDateKey } from "./time";
 
-const { reservations, accounts, drivers, vehicles, vehicleTypes, driverShifts, reservationEvents } = schema;
+const {
+  reservations,
+  accounts,
+  drivers,
+  vehicles,
+  vehicleTypes,
+  driverShifts,
+  reservationEvents,
+  tripStatuses,
+  calendarEvents,
+} = schema;
 
 export type ReservationRow = Awaited<ReturnType<typeof listReservations>>[number];
 
@@ -49,13 +59,15 @@ export async function listReservations(opts: {
       },
       driver: { id: drivers.id, firstName: drivers.firstName, lastName: drivers.lastName, color: drivers.color },
       vehicle: { id: vehicles.id, name: vehicles.name },
-      vehicleType: { id: vehicleTypes.id, name: vehicleTypes.name },
+      vehicleType: { id: vehicleTypes.id, name: vehicleTypes.name, capacity: vehicleTypes.capacity },
+      tripStatus: { id: tripStatuses.id, name: tripStatuses.name, color: tripStatuses.color },
     })
     .from(reservations)
     .leftJoin(accounts, eq(reservations.accountId, accounts.id))
     .leftJoin(drivers, eq(reservations.driverId, drivers.id))
     .leftJoin(vehicles, eq(reservations.vehicleId, vehicles.id))
     .leftJoin(vehicleTypes, eq(reservations.vehicleTypeId, vehicleTypes.id))
+    .leftJoin(tripStatuses, eq(reservations.tripStatusId, tripStatuses.id))
     .where(where.length ? and(...where) : undefined)
     .orderBy(asc(reservations.pickupAt))
     .limit(opts.limit ?? 500);
@@ -191,4 +203,36 @@ export async function accountsWithCounts() {
     .leftJoin(reservations, eq(reservations.accountId, accounts.id))
     .groupBy(accounts.id)
     .orderBy(asc(accounts.lastName));
+}
+
+export async function listTripStatuses() {
+  return db.select().from(tripStatuses).orderBy(asc(tripStatuses.sortOrder));
+}
+
+/** Non-reservation calendar entries between two company-time date keys (inclusive). */
+export async function listCalendarEvents(fromKey: string, toKey: string) {
+  return db
+    .select()
+    .from(calendarEvents)
+    .where(and(gte(calendarEvents.date, fromKey), lte(calendarEvents.date, toKey)))
+    .orderBy(asc(calendarEvents.date), asc(calendarEvents.time));
+}
+
+export async function countReservations(opts: { statuses?: ReservationStatus[]; from?: Date }) {
+  const where: SQL[] = [];
+  if (opts.statuses?.length) where.push(inArray(reservations.status, opts.statuses));
+  if (opts.from) where.push(gte(reservations.pickupAt, opts.from));
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(reservations)
+    .where(where.length ? and(...where) : undefined);
+  return row.n;
+}
+
+/** The confirmation number the next new reservation will get. */
+export async function nextConfNumber() {
+  const res = await db.execute(
+    sql`SELECT CASE WHEN is_called THEN last_value + 1 ELSE last_value END AS n FROM reservations_conf_number_seq`,
+  );
+  return Number((res.rows[0] as { n: string | number }).n);
 }

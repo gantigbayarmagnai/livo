@@ -8,6 +8,20 @@
       "when": 1792603191236,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792605339786,
+      "tag": "0001_trip_statuses_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792605611346,
+      "tag": "0002_meet_greet",
+      "breakpoints": true
     }
   ]
 }

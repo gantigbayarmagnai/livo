@@ -2,17 +2,19 @@
 
 Reservations, dispatch and scheduling for chauffeured transportation. Piloting at MGL Limo.
 
-Livo keeps the section layout Limo Anywhere operators already know (Dispatch, Reservations, Calendar, Driver schedule, Customers, Drivers, Vehicles) so switching over feels familiar.
+Livo uses Limo Anywhere's 14-section menu, in the same order, so switching over feels familiar. The design follows the Livo prototype: dark top bar, DM Sans with JetBrains Mono for times, conf numbers and money, one gold accent, light and dark mode.
 
 ## What works today
 
-- **Dispatch board** — one day at a time. A timeline lane per driver shows shifts and trips, with a red line at the current time. Below it, every trip with inline status, driver and vehicle pickers. Filter to *Needs driver*, *In progress* or *Done & cancelled*.
-- **Conflict checks** — flags a driver or vehicle booked on overlapping trips, a trip outside the driver's shift, and more passengers than the vehicle type seats.
-- **Reservations** — book, edit and copy trips: billing account, passenger, service type (point to point, airport arrival/departure, hourly, round trip), stops, flight, vehicle type, assignment, rate with gratuity and extras, chauffeur and dispatch notes. "Use rate card" fills the base rate from the vehicle type. Every change is logged in the trip's history.
-- **Reservation list** — search by conf #, passenger, company, address or flight; filter by date range and status; grouped by day with totals.
-- **Calendar** — month view with trip counts and open trips per day; click a day to open it on dispatch, or **+** to book on that date.
-- **Driver schedule** — week grid of shifts per driver, scheduled hours, trips per day, and trips that fall off shift. Add shifts (overnight shifts supported) and remove them.
-- **Customers, Drivers, Vehicles** — add records; deactivate drivers; take vehicles out of service; vehicle types carry the rate card.
+- **Dispatch** — the next 3 days with stat cards (trips today, need a driver, conflicts, booked today), flag chips on each trip (needs driver, driver or vehicle double-booked, outside shift, too many passengers, wrong vehicle type, price needed) and a chauffeur picker. Click a trip for its details, trip status, progress, vehicle and a copyable chauffeur brief.
+- **Driver schedule** (tab in Dispatch) — a 3 AM → 3 AM timeline per chauffeur with shifts and trips, a now line, idle vehicles, and add/remove shifts.
+- **Calendar** — Month, Week and Day views (Sunday start). Trips are colored by your own trip statuses; filter by driver (or unassigned), vehicle type, billing contact, service type, status and group; hover for a preview card; click to open and change the trip status; click a date for its day view. Non-reservation events (vehicle service, days off, notes) can be added, shown or hidden.
+- **New Res/Quote** — priced live from MGL's 2026 rate card: SFO transfers, hourly with 3- or 6-hour minimums, Meet & Greet, late/early surcharge, tolls, staff price for anything not on the card. The server re-prices on save. Confirmation numbers continue Limo Anywhere's sequence.
+- **Reservations** — New/Live, Quotes, Done, Cancelled and All tabs, global search by conf #, passenger, company, address or flight, full edit with change history.
+- **My Office** — rate card, add-ons, and MGL's reservation statuses with colors (these color the calendar), plus Chauffeurs and Vehicles.
+- **Accounts** — clients, affiliates and partners with trip counts.
+
+Quotes (AI email intake), Network, Settle, Receivables, Payables, Reports, Memos, Files and Tools are in the menu with a short description of what goes there; they aren't built yet.
 
 All times are entered and shown in the company time zone (`NEXT_PUBLIC_COMPANY_TZ`), no matter where the dispatcher's computer is.
 
@@ -36,7 +38,7 @@ npm run setup
 npm run dev                 # open http://localhost:3000
 ```
 
-`npm run setup` loads sample Bay Area data — 6 drivers, 7 vehicles, 8 accounts and about 120 trips around today's date, including one deliberate double-booking so you can see the conflict warnings. Names, phone numbers and rates are made up. Run `npm run db:seed` any time to reset it.
+`npm run setup` loads sample data: MGL's real rate card and fleet units (MGL01–MGL21), MGL's 12 trip statuses, and made-up chauffeurs, accounts and about 120 San Francisco trips around today's date, including one deliberate double-booking so you can see the conflict flags. Run `npm run db:seed` any time to reset it.
 
 ## Commands
 
@@ -55,26 +57,28 @@ npm run dev                 # open http://localhost:3000
 - **Next.js 16** (App Router, Cache Components, Server Actions) with **TypeScript** and **Tailwind CSS 4**
 - **PostgreSQL** via **Drizzle ORM** — pure TypeScript, no binary engine to download, SQL migrations checked in under `drizzle/`
 - **Zod** validates every form on the server
-- Barlow typeface, self-hosted (SIL Open Font License, see `src/fonts/OFL.txt`)
+- DM Sans and JetBrains Mono, self-hosted (SIL Open Font License, see `src/fonts/`)
 
 ## Where things live
 
 ```
 src/
   app/
-    actions.ts              all writes (server actions): book, edit, assign, status, shifts, records
-    dispatch/               dispatch board + driver timeline
+    actions.ts              all writes (server actions): book, edit, assign, statuses, events, shifts, records
+    dispatch/               dispatch grid + driver schedule
+    calendar/               month / week / day calendar
     reservations/           list, new, [id] detail/edit
-    calendar/  schedule/    month view, weekly driver schedule
-    customers/ drivers/ vehicles/
-  components/               forms, dispatch controls, sidebar, shared UI
+    office/ accounts/ drivers/ vehicles/
+    quotes/ network/ …      sections not built yet
+  components/               top bar, calendar, dispatch board, forms, shared UI
   db/
-    schema.ts               data model (accounts, vehicle types, vehicles, drivers, shifts, reservations, events)
+    schema.ts               data model
     seed.ts                 sample data
   lib/
+    pricing.ts              MGL rate-card rules (shared by form, rate lookup and server)
     queries.ts              reads + conflict detection
     time.ts                 company-time-zone helpers (DST-safe)
-    labels.ts               status/service labels, totals
+    sections.ts             the 14-section menu
 drizzle/                    SQL migrations
 ```
 
@@ -82,4 +86,4 @@ Next.js 16 keeps recently visited pages alive in the background (React Activity)
 
 ## Not built yet
 
-Logins and roles, chauffeur mobile app and live status from the field, payments and invoicing, customer-facing booking and confirmations by email/SMS, flight tracking, maps and drive-time estimates, affiliate farm-in/farm-out, reports, and the Limo Anywhere import for onboarding.
+Logins and roles, AI quote intake, chauffeur mobile app and live status, flight tracking, GNet / LA Net, settling, invoicing and payroll, reports, maps and drive-time estimates, and the Limo Anywhere import for onboarding.
