@@ -3,7 +3,7 @@
  * time zone, regardless of where the server or the dispatcher's browser is.
  */
 
-export const COMPANY_TZ = process.env.NEXT_PUBLIC_COMPANY_TZ || "America/Los_Angeles";
+export const COMPANY_TZ = process.env.LIVO_COMPANY_TZ || "America/Los_Angeles";
 
 type Parts = { year: number; month: number; day: number; hour: number; minute: number; second: number };
 

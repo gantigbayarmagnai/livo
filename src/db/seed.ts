@@ -7,6 +7,7 @@
  */
 import { sql } from "drizzle-orm";
 import { db, schema } from "./index";
+import { insertMglDefaults } from "./defaults";
 import { hashPassword } from "../lib/password";
 import { addDays, addMinutes, todayKey, zonedToUtc } from "../lib/time";
 import type { ReservationStatus, ServiceType } from "./schema";
@@ -17,6 +18,11 @@ const rand = () => (s = (s * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32;
 const pick = <T>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
 
 async function main() {
+  // The seed wipes every table. Refuse on a production database unless forced.
+  if (process.env.NODE_ENV === "production" && process.env.LIVO_ALLOW_SEED !== "yes-wipe-everything") {
+    console.error("Refusing to seed: NODE_ENV is production and this would erase all data.");
+    process.exit(1);
+  }
   console.log("Clearing tables…");
   await db.execute(
     sql`TRUNCATE sessions, users, reservation_events, reservations, calendar_events, trip_statuses, driver_shifts, drivers, vehicles, vehicle_types, accounts RESTART IDENTITY CASCADE`,
@@ -24,71 +30,10 @@ async function main() {
   // Continue MGL's Limo Anywhere confirmation numbers.
   await db.execute(sql`SELECT setval('reservations_conf_number_seq', 81289)`);
 
-  const statuses = await db
-    .insert(schema.tripStatuses)
-    .values(
-      (
-        [
-          ["Unassigned", "#D33A2C"],
-          ["On the road", "#3BAA5C"],
-          ["Done waiting for return booking.", "#6E6E6E"],
-          ["Waiting CC verification to sign link sent", null],
-          ["PENDING REVIEW & AVAILABILITY", "#AFC0EA"],
-          ["Need attention.", "#C495AA"],
-          ["Pending Quote", "#95C2EF"],
-          ["Dispatched", null],
-          ["Flight Time, Date Change", "#F1BFB9"],
-          ["Get Status Now!", "#D63AD6"],
-          ["Waiting List", null],
-          ["Captured Waiver", "#2E7D32"],
-        ] as [string, string | null][]
-      ).map(([name, color], i) => ({ name, color, sortOrder: i })),
-    )
-    .returning();
+  // MGL's real rate card, trip statuses and fleet units.
+  const { statuses, types, vehicles } = await insertMglDefaults(db);
   const st = (name: string) => statuses.find((x) => x.name.startsWith(name))!;
-
-  // MGL Limo Worldwide rate card, 2026. Base rate = SFO pickup to San Francisco.
-  const types = await db
-    .insert(schema.vehicleTypes)
-    .values([
-      { name: "Executive Sedan", capacity: 3, baseRate: "156", hourlyRate: "120", minHours: 3, sortOrder: 1 },
-      { name: "Mercedes S-Class", capacity: 3, baseRate: "0", hourlyRate: "150", minHours: 3, sortOrder: 2 },
-      { name: "Cadillac Escalade SUV", capacity: 6, baseRate: "186", hourlyRate: "150", minHours: 3, sortOrder: 3 },
-      { name: "Executive Sprinter", capacity: 14, baseRate: "481", hourlyRate: "180", minHours: 6, sortOrder: 4 },
-      { name: "Party Limo Sprinter", capacity: 12, baseRate: "0", hourlyRate: "210", minHours: 6, sortOrder: 5 },
-      { name: "Jet Sprinter", capacity: 8, baseRate: "0", hourlyRate: "225", minHours: 6, sortOrder: 6 },
-      { name: "Mini Coach", capacity: 28, baseRate: "1026", hourlyRate: "0", minHours: 6, sortOrder: 7 },
-      { name: "Executive Bus (23 pax)", capacity: 23, baseRate: "0", hourlyRate: "255", minHours: 6, sortOrder: 8 },
-      { name: "Executive Bus (37 pax)", capacity: 37, baseRate: "0", hourlyRate: "295", minHours: 6, sortOrder: 9 },
-      { name: "Motor Coach (50 pax)", capacity: 50, baseRate: "0", hourlyRate: "315", minHours: 6, sortOrder: 10 },
-    ])
-    .returning();
   const ty = (prefix: string) => types.find((t) => t.name.startsWith(prefix))!;
-
-  const fleet: [string, string][] = [
-    ["MGL01", "Cadillac Escalade"],
-    ["MGL04", "Cadillac Escalade"],
-    ["MGL16", "Cadillac Escalade"],
-    ["MGLVIP", "Cadillac Escalade"],
-    ["MGL21", "Cadillac Escalade"],
-    ["MGL02", "Mercedes S"],
-    ["MGL03", "Mercedes S"],
-    ["MGL05", "Mercedes S"],
-    ["MGL09", "Mercedes S"],
-    ["MGL07", "Executive Sedan"],
-    ["MGL17", "Executive Sedan"],
-    ["MGL12", "Executive Sprinter"],
-    ["MGL15", "Executive Sprinter"],
-    ["MGL19", "Executive Sprinter"],
-    ["MGL20", "Executive Sprinter"],
-    ["MGL14", "Party Limo"],
-    ["MGL18", "Party Limo"],
-    ["MGL10", "Jet Sprinter"],
-  ];
-  const vehicles = await db
-    .insert(schema.vehicles)
-    .values(fleet.map(([name, t]) => ({ name, vehicleTypeId: ty(t).id, color: "Black" })))
-    .returning();
   const veh = (n: string) => vehicles.find((v) => v.name === n)!;
 
   const drivers = await db

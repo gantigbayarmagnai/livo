@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { COMPANY_NAME } from "@/lib/company";
 import { requirePage } from "@/lib/auth";
 import { can } from "@/lib/roles";
 import { Suspense } from "react";
-import { addTripStatus } from "@/app/actions";
+import { addTripStatus, setNextConf } from "@/app/actions";
 import { OfficeTabs } from "@/components/office-tabs";
 import { InlineForm } from "@/components/resource-forms";
 import { StatusColors } from "@/components/status-colors";
@@ -123,14 +124,24 @@ async function Office() {
           <h2>Company</h2>
           <dl className="kv">
             <dt>Name</dt>
-            <dd>{process.env.NEXT_PUBLIC_COMPANY_NAME || "MGL Limo Worldwide"}</dd>
+            <dd>{COMPANY_NAME}</dd>
             <dt>Reservations</dt>
             <dd>(415) 699-3138, 24/7</dd>
             <dt>Email</dt>
             <dd>contact@mgllimo.com</dd>
             <dt>Next conf #</dt>
-            <dd className="mono">{conf} · continues Limo Anywhere</dd>
+            <dd className="mono">{conf}</dd>
           </dl>
+          {can(me.role, "settings") ? (
+            <div style={{ marginTop: 12 }}>
+              <InlineForm action={setNextConf} submitLabel="Set" savedLabel="Next confirmation number updated.">
+                <label className="field">
+                  <span className="flabel">Next conf # (to continue Limo Anywhere)</span>
+                  <input name="nextConf" type="number" min={2} placeholder={String(conf)} required />
+                </label>
+              </InlineForm>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

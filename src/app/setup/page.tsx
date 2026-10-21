@@ -25,5 +25,5 @@ export default function SetupPage() {
 async function Gate() {
   // Only available until the first account exists.
   if ((await userCount()) > 0) redirect("/login");
-  return <SetupForm min={MIN_PASSWORD} />;
+  return <SetupForm min={MIN_PASSWORD} needsCode={!!process.env.LIVO_SETUP_CODE} />;
 }

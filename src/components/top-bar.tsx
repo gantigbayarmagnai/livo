@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { COMPANY_NAME } from "@/lib/company";
 import { Suspense } from "react";
 import { and, gte, inArray, isNull, lt } from "drizzle-orm";
 import { signOut } from "@/app/auth-actions";
@@ -10,7 +11,7 @@ import { addDays, formatDayKey, todayKey, zonedToUtc } from "@/lib/time";
 import { NavLive } from "./nav-live";
 import { RateDrawer } from "./rate-drawer";
 
-const COMPANY = process.env.NEXT_PUBLIC_COMPANY_NAME || "MGL Limo Worldwide";
+const COMPANY = COMPANY_NAME;
 
 /** The dark bar. Everything that depends on who is signed in streams in. */
 export function TopBar() {

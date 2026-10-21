@@ -1,10 +1,12 @@
 "use server";
 
+import { timingSafeEqual } from "node:crypto";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema } from "@/db";
+import { insertMglDefaults } from "@/db/defaults";
 import { userRole, type ReservationStatus } from "@/db/schema";
 import {
   MIN_PASSWORD,
@@ -54,6 +56,16 @@ const newPassword = z
 /** First run only: create the owner account. */
 export async function setupOwner(_prev: AuthState, formData: FormData): Promise<AuthState> {
   if ((await userCount()) > 0) return { error: "Livo is already set up. Sign in instead." };
+  // On a live server, setup needs the code from the hosting dashboard, so a stranger can't claim the owner account.
+  const code = process.env.LIVO_SETUP_CODE;
+  if (code) {
+    const given = Buffer.from(String(formData.get("setupCode") ?? "").trim());
+    const want = Buffer.from(code);
+    if (given.length !== want.length || !timingSafeEqual(given, want))
+      return {
+        error: "That setup code isn't right. Copy LIVO_SETUP_CODE from your Render dashboard (Environment tab).",
+      };
+  }
   const parsed = z
     .object({
       name: z.string().trim().min(1, "Add your name."),
@@ -70,6 +82,10 @@ export async function setupOwner(_prev: AuthState, formData: FormData): Promise<
     RETURNING id`);
   const id = (inserted.rows[0] as { id: string } | undefined)?.id;
   if (!id) return { error: "Livo is already set up. Sign in instead." };
+  if (formData.get("mglDefaults") === "on") await insertMglDefaults(db);
+  const nextConf = Number(formData.get("nextConf"));
+  if (Number.isInteger(nextConf) && nextConf > 1 && nextConf < 2_000_000_000)
+    await db.execute(sql`SELECT setval('reservations_conf_number_seq', ${nextConf - 1})`);
   await startSession(id);
   redirect("/dispatch");
 }

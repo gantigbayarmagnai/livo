@@ -21,7 +21,11 @@ Livo uses Limo Anywhere's 14-section menu, in the same order, so switching over 
 
 Quotes (AI email intake), Network, Settle, Receivables, Payables, Reports, Memos, Files and Tools are in the menu with a short description of what goes there; they aren't built yet.
 
-All times are entered and shown in the company time zone (`NEXT_PUBLIC_COMPANY_TZ`), no matter where the dispatcher's computer is.
+All times are entered and shown in the company time zone (`LIVO_COMPANY_TZ`), no matter where the dispatcher's computer is.
+
+## Live deployment
+
+Livo runs on Render at **app.getlivo.org**. Step-by-step setup is in [DEPLOY.md](DEPLOY.md).
 
 ## Run it on your Mac
 

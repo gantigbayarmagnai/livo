@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * cookie exists; every page and action still verifies the session and the
  * user's permissions on the server.
  */
-const PUBLIC = ["/login", "/setup"];
+const PUBLIC = ["/login", "/setup", "/api/health"];
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

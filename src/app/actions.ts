@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, ilike } from "drizzle-orm";
+import { eq, ilike, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -459,4 +459,17 @@ export async function movePickup(id: string, date: string, time: string) {
     .where(eq(reservations.id, id));
   await log(id, "updated", `Pickup moved to ${time}`);
   refresh();
+}
+
+/** Owner: move the next confirmation number forward (never backward, so numbers stay unique). */
+export async function setNextConf(_prev: FormState, formData: FormData): Promise<FormState> {
+  const denied = await deny("settings");
+  if (denied) return denied;
+  const n = Number(formData.get("nextConf"));
+  if (!Number.isInteger(n) || n < 2 || n > 2_000_000_000) return { error: "Enter a whole number." };
+  const [row] = await db.select({ max: sql<number | null>`max(${reservations.confNumber})` }).from(reservations);
+  if (row?.max && n <= row.max) return { error: `Must be higher than the last one used (#${row.max}).` };
+  await db.execute(sql`SELECT setval('reservations_conf_number_seq', ${n - 1})`);
+  refresh();
+  return { ok: true };
 }

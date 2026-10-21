@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { COMPANY_NAME } from "@/lib/company";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { SignInForm } from "@/components/auth-forms";
@@ -14,7 +15,7 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
       <div className="eyebrow">Livo</div>
       <h1>Sign in</h1>
       <p className="muted" style={{ marginTop: 0 }}>
-        {process.env.NEXT_PUBLIC_COMPANY_NAME || "MGL Limo Worldwide"}
+        {COMPANY_NAME}
       </p>
       <Suspense fallback={<Loading rows={3} />}>
         <Gate searchParams={searchParams as Promise<{ next?: string }>} />

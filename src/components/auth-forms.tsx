@@ -44,12 +44,21 @@ export function SignInForm({ next }: { next: string | null }) {
   );
 }
 
-export function SetupForm({ min }: { min: number }) {
+export function SetupForm({ min, needsCode }: { min: number; needsCode: boolean }) {
   const [state, action, pending] = useActionState(setupOwner, {});
   const id = useId();
   return (
     <form action={action} className="panel">
       <Err state={state} />
+      {needsCode ? (
+        <div className="field">
+          <label htmlFor={`${id}s`}>Setup code</label>
+          <input id={`${id}s`} name="setupCode" autoComplete="off" required aria-describedby={`${id}sh`} />
+          <span id={`${id}sh`} className="muted" style={{ fontSize: 12 }}>
+            In Render: your livo service → Environment → LIVO_SETUP_CODE.
+          </span>
+        </div>
+      ) : null}
       <div className="field">
         <label htmlFor={`${id}n`}>Your name</label>
         <input id={`${id}n`} name="name" autoComplete="name" required autoFocus />
@@ -73,6 +82,34 @@ export function SetupForm({ min }: { min: number }) {
           At least {min} characters. A short phrase is easiest to remember.
         </span>
       </div>
+      <div className="field">
+        <label htmlFor={`${id}c`}>Next confirmation number</label>
+        <input
+          id={`${id}c`}
+          name="nextConf"
+          type="number"
+          min={2}
+          placeholder="e.g. 81327"
+          aria-describedby={`${id}ch`}
+        />
+        <span id={`${id}ch`} className="muted" style={{ fontSize: 12 }}>
+          Optional. Use the next number from Limo Anywhere so confirmation numbers carry on.
+        </span>
+      </div>
+      <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13.5 }}>
+        <input
+          type="checkbox"
+          name="mglDefaults"
+          defaultChecked
+          style={{ marginTop: 3, accentColor: "var(--accent)" }}
+        />
+        <span>
+          Start with MGL’s 2026 rate card, trip statuses and fleet units (MGL01–MGL21)
+          <span className="muted" style={{ display: "block", fontSize: 12 }}>
+            You can change all of it later in My Office.
+          </span>
+        </span>
+      </label>
       <button className="btn primary" type="submit" disabled={pending} style={{ justifyContent: "center" }}>
         {pending ? "Setting up…" : "Create owner account"}
       </button>
