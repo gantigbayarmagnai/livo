@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
+import { requirePage } from "@/lib/auth";
 import Link from "next/link";
-import { connection } from "next/server";
 import { Suspense } from "react";
 import { Loading, StatusChip, TripStatusChip, ViewHead } from "@/components/ui";
 import type { ReservationStatus } from "@/db/schema";
@@ -36,7 +36,7 @@ export default function ReservationsPage({ searchParams }: PageProps<"/reservati
 }
 
 async function List({ searchParams }: { searchParams: Promise<Search> }) {
-  await connection();
+  await requirePage("ops");
   const sp = await searchParams;
   const q = (sp.q ?? "").trim().slice(0, 80);
   const group = GROUPS.find((g) => g.id === sp.group) ?? GROUPS[0];

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { NotBuilt } from "@/components/ui";
+import { NotBuilt } from "@/components/not-built";
 
 export const metadata: Metadata = { title: "Quotes" };
 

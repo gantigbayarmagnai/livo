@@ -7,7 +7,9 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { reservationStatus, serviceType, type ReservationStatus } from "@/db/schema";
 import { STATUS_LABELS, fullName } from "@/lib/labels";
+import { getCurrentUser, requireAction } from "@/lib/auth";
 import { quote, type MeetGreet } from "@/lib/pricing";
+import type { Permission } from "@/lib/roles";
 import { zonedToUtc } from "@/lib/time";
 
 const {
@@ -137,10 +139,25 @@ async function parseReservation(formData: FormData) {
 }
 
 async function log(reservationId: string, kind: string, message: string) {
-  await db.insert(reservationEvents).values({ reservationId, kind, message });
+  const me = await getCurrentUser();
+  await db
+    .insert(reservationEvents)
+    .values({ reservationId, kind, message, actorName: me?.name ?? null, userId: me?.id ?? null });
+}
+
+/** Form actions report a missing permission as a form error instead of crashing. */
+async function deny(permission: Permission): Promise<FormState | null> {
+  try {
+    await requireAction(permission);
+    return null;
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
 }
 
 export async function createReservation(_prev: FormState, formData: FormData): Promise<FormState> {
+  const denied = await deny("ops");
+  if (denied) return denied;
   const p = await parseReservation(formData);
   if (p.error) return p.error;
   const [row] = await db
@@ -152,6 +169,8 @@ export async function createReservation(_prev: FormState, formData: FormData): P
 }
 
 export async function updateReservation(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const denied = await deny("ops");
+  if (denied) return denied;
   const p = await parseReservation(formData);
   if (p.error) return p.error;
   const [before] = await db.select().from(reservations).where(eq(reservations.id, id));
@@ -176,6 +195,7 @@ export async function updateReservation(id: string, _prev: FormState, formData: 
 
 /** Inline changes from the dispatch board. */
 export async function setStatus(id: string, status: ReservationStatus) {
+  await requireAction("ops");
   const parsed = z.enum(reservationStatus.enumValues).parse(status);
   const [before] = await db.select({ status: reservations.status }).from(reservations).where(eq(reservations.id, id));
   if (!before || before.status === parsed) return;
@@ -185,6 +205,7 @@ export async function setStatus(id: string, status: ReservationStatus) {
 }
 
 export async function assignDriver(id: string, driverId: string | null) {
+  await requireAction("ops");
   const [r] = await db.select().from(reservations).where(eq(reservations.id, id));
   if (!r) return;
   let driverName = "nobody";
@@ -214,6 +235,7 @@ export async function assignDriver(id: string, driverId: string | null) {
 }
 
 export async function assignVehicle(id: string, vehicleId: string | null) {
+  await requireAction("ops");
   let name = "none";
   if (vehicleId) {
     const [v] = await db.select().from(vehicles).where(eq(vehicles.id, vehicleId));
@@ -226,6 +248,7 @@ export async function assignVehicle(id: string, vehicleId: string | null) {
 }
 
 export async function duplicateReservation(id: string) {
+  await requireAction("ops");
   const [r] = await db.select().from(reservations).where(eq(reservations.id, id));
   if (!r) return;
   const { id: _id, confNumber: _c, createdAt: _a, updatedAt: _u, ...rest } = r;
@@ -248,6 +271,8 @@ const shiftInput = z.object({
 });
 
 export async function addShift(_prev: FormState, formData: FormData): Promise<FormState> {
+  const denied = await deny("ops");
+  if (denied) return denied;
   const parsed = shiftInput.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { driverId, date, start, end, notes } = parsed.data;
@@ -261,6 +286,7 @@ export async function addShift(_prev: FormState, formData: FormData): Promise<Fo
 }
 
 export async function deleteShift(id: string) {
+  await requireAction("ops");
   await db.delete(driverShifts).where(eq(driverShifts.id, id));
   refresh();
 }
@@ -268,6 +294,8 @@ export async function deleteShift(id: string) {
 /* ---------- Resources ---------- */
 
 export async function addAccount(_prev: FormState, formData: FormData): Promise<FormState> {
+  const denied = await deny("ops");
+  if (denied) return denied;
   const parsed = z
     .object({
       firstName: z.string().trim().min(1, "First name is required"),
@@ -285,6 +313,8 @@ export async function addAccount(_prev: FormState, formData: FormData): Promise<
 }
 
 export async function addDriver(_prev: FormState, formData: FormData): Promise<FormState> {
+  const denied = await deny("settings");
+  if (denied) return denied;
   const parsed = z
     .object({
       firstName: z.string().trim().min(1, "First name is required"),
@@ -305,6 +335,7 @@ export async function addDriver(_prev: FormState, formData: FormData): Promise<F
 }
 
 export async function toggleDriverStatus(id: string) {
+  await requireAction("settings");
   const [d] = await db.select().from(drivers).where(eq(drivers.id, id));
   if (!d) return;
   await db
@@ -315,6 +346,8 @@ export async function toggleDriverStatus(id: string) {
 }
 
 export async function addVehicle(_prev: FormState, formData: FormData): Promise<FormState> {
+  const denied = await deny("settings");
+  if (denied) return denied;
   const parsed = z
     .object({
       name: z.string().trim().min(1, "Vehicle name is required"),
@@ -331,6 +364,7 @@ export async function addVehicle(_prev: FormState, formData: FormData): Promise<
 }
 
 export async function toggleVehicleActive(id: string) {
+  await requireAction("settings");
   const [v] = await db.select().from(vehicles).where(eq(vehicles.id, id));
   if (!v) return;
   await db.update(vehicles).set({ active: !v.active }).where(eq(vehicles.id, id));
@@ -340,6 +374,7 @@ export async function toggleVehicleActive(id: string) {
 /* ---------- Trip statuses (MGL's colored statuses) ---------- */
 
 export async function setTripStatus(id: string, tripStatusId: string) {
+  await requireAction("ops");
   const [stRow] = await db.select().from(tripStatuses).where(eq(tripStatuses.id, tripStatusId));
   if (!stRow) return;
   await db.update(reservations).set({ tripStatusId, updatedAt: new Date() }).where(eq(reservations.id, id));
@@ -348,6 +383,7 @@ export async function setTripStatus(id: string, tripStatusId: string) {
 }
 
 export async function setTripStatusColor(id: string, color: string | null) {
+  await requireAction("settings");
   const c =
     color === null
       ? null
@@ -360,6 +396,8 @@ export async function setTripStatusColor(id: string, color: string | null) {
 }
 
 export async function addTripStatus(_prev: FormState, formData: FormData): Promise<FormState> {
+  const denied = await deny("settings");
+  if (denied) return denied;
   const parsed = z
     .object({ name: z.string().trim().min(1, "Name the status"), color: z.string().regex(/^#[0-9a-fA-F]{6}$/) })
     .safeParse(Object.fromEntries(formData.entries()));
@@ -373,6 +411,8 @@ export async function addTripStatus(_prev: FormState, formData: FormData): Promi
 /* ---------- Calendar events ---------- */
 
 export async function addCalendarEvent(_prev: FormState, formData: FormData): Promise<FormState> {
+  const denied = await deny("ops");
+  if (denied) return denied;
   const parsed = z
     .object({
       title: z.string().trim().min(1, "Give the event a name"),
@@ -392,6 +432,7 @@ export async function addCalendarEvent(_prev: FormState, formData: FormData): Pr
 }
 
 export async function deleteCalendarEvent(id: string) {
+  await requireAction("ops");
   await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
   refresh();
 }
@@ -399,11 +440,13 @@ export async function deleteCalendarEvent(id: string) {
 /* ---------- Rate lookup ---------- */
 
 export async function getRateCard() {
+  await requireAction("ops");
   return db.select().from(vehicleTypes).orderBy(vehicleTypes.sortOrder);
 }
 
 /** Pickup move after a flight delay (dispatch detail). */
 export async function movePickup(id: string, date: string, time: string) {
+  await requireAction("ops");
   z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .parse(date);

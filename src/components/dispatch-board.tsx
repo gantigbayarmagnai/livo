@@ -184,7 +184,7 @@ function briefFor(t: BoardTrip, fmtDay: (k: string) => string) {
     "MGL LIMO WORLDWIDE · CHAUFFEUR BRIEF",
     `Conf #${t.conf} · ${fmtDay(t.date)} · Pickup ${t.time}`,
     `Chauffeur: ${t.driverName ?? "UNASSIGNED"}`,
-    `Passenger: ${t.pax} (${t.account}) · ${t.paxCount} pax${t.bags ? `, ${t.bags} bags` : ""}`,
+    `Passenger: ${t.pax} (${t.account}) · ${t.paxCount} pax${t.bags ? `, ${t.bags} bag${t.bags === 1 ? "" : "s"}` : ""}`,
     `Vehicle: ${t.vehicleName ?? t.vehicleType}${t.hours ? ` · ${t.hours} hrs as directed` : ""}`,
     t.flight ? `Flight: ${t.flight}` : null,
     `Pickup: ${t.pickup}`,
@@ -234,7 +234,7 @@ function Detail({
           <dd>{t.account}</dd>
           <dt>Passenger</dt>
           <dd>
-            {t.pax} · {t.paxCount} pax{t.bags ? `, ${t.bags} bags` : ""}
+            {t.pax} · {t.paxCount} pax{t.bags ? `, ${t.bags} bag${t.bags === 1 ? "" : "s"}` : ""}
           </dd>
           <dt>When</dt>
           <dd>

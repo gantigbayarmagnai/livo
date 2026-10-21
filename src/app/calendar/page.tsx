@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { connection } from "next/server";
+import { requirePage } from "@/lib/auth";
 import { Suspense } from "react";
 import { CalendarView, type CalTrip, type CalView } from "@/components/calendar";
 import { Loading, ViewHead } from "@/components/ui";
@@ -37,7 +37,7 @@ function visibleRange(view: CalView, date: string): [string, string] {
 }
 
 async function CalendarData({ searchParams }: { searchParams: Promise<{ view?: string; date?: string }> }) {
-  await connection();
+  await requirePage("ops");
   const sp = await searchParams;
   const today = todayKey();
   const view: CalView = sp.view === "week" || sp.view === "day" ? sp.view : "month";

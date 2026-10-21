@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { connection } from "next/server";
+import { requirePage } from "@/lib/auth";
 import { Suspense } from "react";
 import { createReservation } from "@/app/actions";
 import { ReservationForm } from "@/components/reservation-form";
@@ -25,7 +25,7 @@ export default function NewReservationPage({ searchParams }: PageProps<"/reserva
 }
 
 async function NewForm({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
-  await connection();
+  await requirePage("ops");
   const sp = await searchParams;
   const [res, tripStatuses, conf] = await Promise.all([getResources(), listTripStatuses(), nextConfNumber()]);
   const date = isDateKey(sp.date) ? sp.date : addDays(todayKey(), 2);

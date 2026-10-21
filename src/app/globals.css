@@ -1268,3 +1268,75 @@ pre.brief {
 .seg label {
   white-space: nowrap;
 }
+
+/* ---------- User menu ---------- */
+.usermenu {
+  position: relative;
+}
+.usermenu summary {
+  list-style: none;
+}
+.usermenu summary::-webkit-details-marker {
+  display: none;
+}
+.usermenu-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 240px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+  padding: 12px 14px;
+}
+
+/* ---------- Sign-in pages ---------- */
+.auth {
+  max-width: 400px;
+  margin: 48px auto 0;
+}
+.auth .panel {
+  display: grid;
+  gap: 12px;
+}
+.auth h1 {
+  margin-bottom: 4px;
+}
+
+/* ---------- Chauffeur trips ---------- */
+.trip-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+}
+.trip-card .when {
+  font-family: var(--font-data);
+  font-size: 22px;
+  font-weight: 600;
+}
+.trip-card .steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+.trip-card .steps .btn {
+  justify-content: center;
+  padding: 12px;
+  font-size: 15px;
+}
+.secret {
+  font-family: var(--font-data);
+  font-size: 18px;
+  font-weight: 600;
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  user-select: all;
+}

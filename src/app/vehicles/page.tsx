@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { connection } from "next/server";
+import { requirePage } from "@/lib/auth";
+import { can } from "@/lib/roles";
 import { Suspense } from "react";
 import { addVehicle, toggleVehicleActive } from "@/app/actions";
 import { OfficeTabs } from "@/components/office-tabs";
@@ -22,41 +23,43 @@ export default function VehiclesPage() {
 }
 
 async function Content() {
-  await connection();
+  const me = await requirePage("ops");
   const res = await getResources();
   return (
     <div className="stack">
-      <div className="panel">
-        <h2>Add a vehicle</h2>
-        <InlineForm action={addVehicle} submitLabel="Add vehicle" savedLabel="Vehicle added.">
-          <label className="field">
-            <span className="flabel">Unit</span>
-            <input name="name" placeholder="MGL22" required />
-          </label>
-          <label className="field">
-            <span className="flabel">Type</span>
-            <select name="vehicleTypeId" required>
-              {res.vehicleTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span className="flabel">Plate</span>
-            <input name="plate" />
-          </label>
-          <label className="field">
-            <span className="flabel">Color</span>
-            <input name="color" />
-          </label>
-          <label className="field">
-            <span className="flabel">Year</span>
-            <input name="year" type="number" />
-          </label>
-        </InlineForm>
-      </div>
+      {can(me.role, "settings") ? (
+        <div className="panel">
+          <h2>Add a vehicle</h2>
+          <InlineForm action={addVehicle} submitLabel="Add vehicle" savedLabel="Vehicle added.">
+            <label className="field">
+              <span className="flabel">Unit</span>
+              <input name="name" placeholder="MGL22" required />
+            </label>
+            <label className="field">
+              <span className="flabel">Type</span>
+              <select name="vehicleTypeId" required>
+                {res.vehicleTypes.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="flabel">Plate</span>
+              <input name="plate" />
+            </label>
+            <label className="field">
+              <span className="flabel">Color</span>
+              <input name="color" />
+            </label>
+            <label className="field">
+              <span className="flabel">Year</span>
+              <input name="year" type="number" />
+            </label>
+          </InlineForm>
+        </div>
+      ) : null}
       <div className="tbl-wrap">
         <table className="tbl">
           <thead>
@@ -79,11 +82,15 @@ async function Content() {
                 <td className="mono">{v.plate ?? "—"}</td>
                 <td>{[v.year, v.color].filter(Boolean).join(" · ") || "—"}</td>
                 <td>{v.active ? <span className="chip good">Yes</span> : <span className="chip plain">No</span>}</td>
-                <td style={{ textAlign: "right" }}>
-                  <ActionButton run={toggleVehicleActive.bind(null, v.id)} className="btn small">
-                    {v.active ? "Take out of service" : "Return to service"}
-                  </ActionButton>
-                </td>
+                {can(me.role, "settings") ? (
+                  <td style={{ textAlign: "right" }}>
+                    <ActionButton run={toggleVehicleActive.bind(null, v.id)} className="btn small">
+                      {v.active ? "Take out of service" : "Return to service"}
+                    </ActionButton>
+                  </td>
+                ) : (
+                  <td />
+                )}
               </tr>
             ))}
           </tbody>

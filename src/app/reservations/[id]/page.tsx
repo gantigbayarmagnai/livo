@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import { requirePage } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { connection } from "next/server";
 import { Suspense } from "react";
 import { duplicateReservation, updateReservation } from "@/app/actions";
 import { ReservationForm } from "@/components/reservation-form";
@@ -29,7 +29,7 @@ async function Detail({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ created?: string }>;
 }) {
-  await connection();
+  await requirePage("ops");
   const { id } = await params;
   if (!UUID.test(id)) notFound();
   const [data, res, tripStatuses, sp] = await Promise.all([
@@ -116,7 +116,10 @@ async function Detail({
                   <td className="mono muted" style={{ whiteSpace: "nowrap", width: 1 }}>
                     {formatDateTime(e.createdAt)}
                   </td>
-                  <td>{e.message}</td>
+                  <td>
+                    {e.message}
+                    {e.actorName ? <span className="muted"> · {e.actorName}</span> : null}
+                  </td>
                 </tr>
               ))}
             </tbody>

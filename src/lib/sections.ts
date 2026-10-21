@@ -20,7 +20,7 @@ export type SectionId = (typeof SECTIONS)[number]["id"];
 
 /** Which section a path belongs to (driver/vehicle records live under My Office). */
 export function sectionFor(path: string): SectionId | null {
-  if (path.startsWith("/drivers") || path.startsWith("/vehicles")) return "office";
+  if (path.startsWith("/drivers") || path.startsWith("/vehicles") || path.startsWith("/team")) return "office";
   if (path.startsWith("/reservations")) return "reservations";
   const hit = SECTIONS.find((s) => path === s.href || path.startsWith(s.href + "/"));
   return hit?.id ?? null;

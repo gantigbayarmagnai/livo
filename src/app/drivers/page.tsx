@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { connection } from "next/server";
+import { requirePage } from "@/lib/auth";
+import { can } from "@/lib/roles";
 import { Suspense } from "react";
 import { addDriver, toggleDriverStatus } from "@/app/actions";
 import { OfficeTabs } from "@/components/office-tabs";
@@ -23,40 +24,42 @@ export default function DriversPage() {
 }
 
 async function Content() {
-  await connection();
+  const me = await requirePage("ops");
   const res = await getResources();
   const vehicle = (id: string | null) => res.vehicles.find((v) => v.id === id);
   return (
     <div className="stack">
-      <div className="panel">
-        <h2>Add a chauffeur</h2>
-        <InlineForm action={addDriver} submitLabel="Add chauffeur" savedLabel="Chauffeur added.">
-          <label className="field">
-            <span className="flabel">First name</span>
-            <input name="firstName" required />
-          </label>
-          <label className="field">
-            <span className="flabel">Last name</span>
-            <input name="lastName" required />
-          </label>
-          <label className="field">
-            <span className="flabel">Phone</span>
-            <input name="phone" type="tel" />
-          </label>
-          <label className="field">
-            <span className="flabel">Usual vehicle</span>
-            <select name="defaultVehicleId">
-              <option value="">None</option>
-              {res.vehicles.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name} · {v.typeName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <input type="hidden" name="color" value="#5b636c" />
-        </InlineForm>
-      </div>
+      {can(me.role, "settings") ? (
+        <div className="panel">
+          <h2>Add a chauffeur</h2>
+          <InlineForm action={addDriver} submitLabel="Add chauffeur" savedLabel="Chauffeur added.">
+            <label className="field">
+              <span className="flabel">First name</span>
+              <input name="firstName" required />
+            </label>
+            <label className="field">
+              <span className="flabel">Last name</span>
+              <input name="lastName" required />
+            </label>
+            <label className="field">
+              <span className="flabel">Phone</span>
+              <input name="phone" type="tel" />
+            </label>
+            <label className="field">
+              <span className="flabel">Usual vehicle</span>
+              <select name="defaultVehicleId">
+                <option value="">None</option>
+                {res.vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name} · {v.typeName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <input type="hidden" name="color" value="#5b636c" />
+          </InlineForm>
+        </div>
+      ) : null}
       <div className="tbl-wrap">
         <table className="tbl">
           <thead>
@@ -85,11 +88,15 @@ async function Content() {
                       <span className="chip plain">Inactive</span>
                     )}
                   </td>
-                  <td style={{ textAlign: "right" }}>
-                    <ActionButton run={toggleDriverStatus.bind(null, d.id)} className="btn small">
-                      {d.status === "active" ? "Deactivate" : "Reactivate"}
-                    </ActionButton>
-                  </td>
+                  {can(me.role, "settings") ? (
+                    <td style={{ textAlign: "right" }}>
+                      <ActionButton run={toggleDriverStatus.bind(null, d.id)} className="btn small">
+                        {d.status === "active" ? "Deactivate" : "Reactivate"}
+                      </ActionButton>
+                    </td>
+                  ) : (
+                    <td />
+                  )}
                 </tr>
               );
             })}

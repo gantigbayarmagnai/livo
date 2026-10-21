@@ -42,6 +42,9 @@ export const serviceType = pgEnum("service_type", [
 
 export const driverStatus = pgEnum("driver_status", ["active", "inactive"]);
 
+/** owner: everything · dispatcher: day-to-day operations · chauffeur: their own trips. */
+export const userRole = pgEnum("user_role", ["owner", "dispatcher", "chauffeur"]);
+
 export const accounts = pgTable("accounts", {
   id: uuid("id").primaryKey().defaultRandom(),
   accountNumber: serial("account_number").notNull().unique(),
@@ -181,6 +184,37 @@ export const reservations = pgTable(
   ],
 );
 
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(), // stored lowercase
+  name: text("name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  role: userRole("role").notNull(),
+  /** For chauffeurs: which driver record is theirs. */
+  driverId: uuid("driver_id").references(() => drivers.id, { onDelete: "set null" }),
+  active: boolean("active").notNull().default(true),
+  /** Set when an owner creates or resets the password; cleared once the user picks their own. */
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
+  failedLogins: integer("failed_logins").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Signed-in sessions. The id is a SHA-256 of the cookie token, so a database leak can't be replayed. */
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("sessions_user_idx").on(t.userId)],
+);
+
 /** Audit trail: every status change, assignment, and edit. */
 export const reservationEvents = pgTable(
   "reservation_events",
@@ -191,6 +225,9 @@ export const reservationEvents = pgTable(
       .references(() => reservations.id, { onDelete: "cascade" }),
     kind: text("kind").notNull(),
     message: text("message").notNull(),
+    /** Who made the change (kept as text so history survives a deleted user). */
+    actorName: text("actor_name"),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("reservation_events_res_idx").on(t.reservationId, t.createdAt)],
@@ -202,6 +239,8 @@ export type Vehicle = typeof vehicles.$inferSelect;
 export type Driver = typeof drivers.$inferSelect;
 export type DriverShift = typeof driverShifts.$inferSelect;
 export type Reservation = typeof reservations.$inferSelect;
+export type User = typeof users.$inferSelect;
+export type UserRole = (typeof userRole.enumValues)[number];
 export type TripStatus = typeof tripStatuses.$inferSelect;
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
 export type ReservationEvent = typeof reservationEvents.$inferSelect;

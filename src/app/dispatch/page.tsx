@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { requirePage } from "@/lib/auth";
+import { can } from "@/lib/roles";
 import Link from "next/link";
-import { connection } from "next/server";
 import { Suspense } from "react";
 import { DispatchBoard, type BoardTrip } from "@/components/dispatch-board";
 import { DriverSchedule } from "@/components/driver-schedule";
@@ -29,7 +30,7 @@ export default function DispatchPage({ searchParams }: PageProps<"/dispatch">) {
 }
 
 async function Dispatch({ searchParams }: { searchParams: Promise<Search> }) {
-  await connection();
+  const me = await requirePage("ops");
   const sp = await searchParams;
   const today = todayKey();
   const date = isDateKey(sp.date) ? sp.date : today;
@@ -169,12 +170,19 @@ async function Dispatch({ searchParams }: { searchParams: Promise<Search> }) {
           <div className="eyebrow">Conflicts</div>
           <div className="n">{conflicts.length}</div>
         </div>
-        <div className="stat">
-          <div className="eyebrow">{isToday ? "Booked today" : "Booked first day"}</div>
-          <div className="n">
-            ${firstDay.reduce((s, t) => s + t.total, 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+        {can(me.role, "money") ? (
+          <div className="stat">
+            <div className="eyebrow">{isToday ? "Booked today" : "Booked first day"}</div>
+            <div className="n">
+              ${firstDay.reduce((s, t) => s + t.total, 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="stat">
+            <div className="eyebrow">Trips in 3 days</div>
+            <div className="n">{trips.length}</div>
+          </div>
+        )}
       </div>
       <DispatchBoard
         trips={trips}

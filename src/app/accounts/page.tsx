@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
+import { requirePage } from "@/lib/auth";
 import Link from "next/link";
-import { connection } from "next/server";
 import { Suspense } from "react";
 import { addAccount } from "@/app/actions";
 import { InlineForm } from "@/components/resource-forms";
@@ -54,7 +54,7 @@ function Field({
 }
 
 async function Table() {
-  await connection();
+  await requirePage("ops");
   const rows = await accountsWithCounts();
   return (
     <div className="tbl-wrap">

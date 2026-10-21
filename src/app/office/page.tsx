@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { connection } from "next/server";
+import { requirePage } from "@/lib/auth";
+import { can } from "@/lib/roles";
 import { Suspense } from "react";
 import { addTripStatus } from "@/app/actions";
 import { OfficeTabs } from "@/components/office-tabs";
@@ -28,7 +29,7 @@ export default function OfficePage() {
 }
 
 async function Office() {
-  await connection();
+  const me = await requirePage("ops");
   const [res, statuses, conf] = await Promise.all([getResources(), listTripStatuses(), nextConfNumber()]);
   return (
     <div className="grid2">
@@ -79,19 +80,44 @@ async function Office() {
           <p className="muted" style={{ margin: "0 0 10px", fontSize: 12.5 }}>
             Your own statuses and colors, as in Limo Anywhere. They color the Calendar.
           </p>
-          <StatusColors statuses={statuses} />
-          <div style={{ marginTop: 14 }}>
-            <InlineForm action={addTripStatus} submitLabel="Add status" savedLabel="Status added.">
-              <label className="field" style={{ flex: 1, minWidth: 180 }}>
-                <span className="flabel">New status</span>
-                <input name="name" placeholder="e.g. Waiting on deposit" required />
-              </label>
-              <label className="field" style={{ minWidth: 0 }}>
-                <span className="flabel">Color</span>
-                <input name="color" type="color" defaultValue="#95c2ef" style={{ width: 48, height: 36, padding: 2 }} />
-              </label>
-            </InlineForm>
-          </div>
+          {can(me.role, "settings") ? (
+            <>
+              <StatusColors statuses={statuses} />
+              <div style={{ marginTop: 14 }}>
+                <InlineForm action={addTripStatus} submitLabel="Add status" savedLabel="Status added.">
+                  <label className="field" style={{ flex: 1, minWidth: 180 }}>
+                    <span className="flabel">New status</span>
+                    <input name="name" placeholder="e.g. Waiting on deposit" required />
+                  </label>
+                  <label className="field" style={{ minWidth: 0 }}>
+                    <span className="flabel">Color</span>
+                    <input
+                      name="color"
+                      type="color"
+                      defaultValue="#95c2ef"
+                      style={{ width: 48, height: 36, padding: 2 }}
+                    />
+                  </label>
+                </InlineForm>
+              </div>
+            </>
+          ) : (
+            <div className="legend" style={{ flexDirection: "column", gap: 6, margin: 0 }}>
+              {statuses.map((st) => (
+                <span key={st.id}>
+                  <i
+                    style={
+                      st.color
+                        ? { background: st.color }
+                        : { background: "var(--surface)", border: "1px solid var(--line)" }
+                    }
+                  />
+                  {st.name}
+                </span>
+              ))}
+              <span className="muted">Only an owner can change statuses.</span>
+            </div>
+          )}
         </div>
         <div className="panel">
           <h2>Company</h2>

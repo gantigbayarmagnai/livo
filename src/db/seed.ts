@@ -7,6 +7,7 @@
  */
 import { sql } from "drizzle-orm";
 import { db, schema } from "./index";
+import { hashPassword } from "../lib/password";
 import { addDays, addMinutes, todayKey, zonedToUtc } from "../lib/time";
 import type { ReservationStatus, ServiceType } from "./schema";
 
@@ -18,7 +19,7 @@ const pick = <T>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
 async function main() {
   console.log("Clearing tables…");
   await db.execute(
-    sql`TRUNCATE reservation_events, reservations, calendar_events, trip_statuses, driver_shifts, drivers, vehicles, vehicle_types, accounts RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE sessions, users, reservation_events, reservations, calendar_events, trip_statuses, driver_shifts, drivers, vehicles, vehicle_types, accounts RESTART IDENTITY CASCADE`,
   );
   // Continue MGL's Limo Anywhere confirmation numbers.
   await db.execute(sql`SELECT setval('reservations_conf_number_seq', 81289)`);
@@ -440,6 +441,16 @@ async function main() {
     { date: addDays(today, 4), time: "09:00", title: "MGL01 Escalade in for service", kind: "Vehicle" },
     { date: addDays(today, 6), time: null, title: "Lee C. day off", kind: "Driver" },
   ]);
+
+  // Demo sign-ins for local testing only. Never run the seed on a live database.
+  const demoPassword = "livo-demo-2026";
+  const hash = await hashPassword(demoPassword);
+  await db.insert(schema.users).values([
+    { name: "Demo Owner", email: "owner@livo.test", role: "owner", passwordHash: hash },
+    { name: "Demo Dispatcher", email: "dispatch@livo.test", role: "dispatcher", passwordHash: hash },
+    { name: "Marco R.", email: "marco@livo.test", role: "chauffeur", driverId: drivers[0].id, passwordHash: hash },
+  ]);
+  console.log(`Demo sign-ins (password ${demoPassword}): owner@livo.test, dispatch@livo.test, marco@livo.test`);
 
   console.log(
     `Seeded ${statuses.length} trip statuses, ${types.length} vehicle types, ${vehicles.length} vehicles, ${drivers.length} drivers, ${accounts.length} accounts, ${shifts.length} shifts, ${inserted.length} reservations.`,
